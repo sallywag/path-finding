@@ -1,5 +1,5 @@
 from enum import Enum
-from token import STAR
+from tarfile import TarError
 from typing import Optional
 from collections import namedtuple
 import pprint
@@ -69,12 +69,12 @@ class PathFinding(arcade.Window):
         return nodes
 
     def on_update(self, delta_time: float) -> None:
-        nodes_to_visit = []
-        nodes_to_visit.append(START_NODE_COORDINATES)
-        while nodes_to_visit:
-            current_node_coordinates = nodes_to_visit.pop()
-            if current_node_coordinates.x != 0:  # VISIT LEFT NODE
-                nodes_to_visit.append(
+        coordinates_to_visit = []
+        coordinates_to_visit.append(START_NODE_COORDINATES)
+        while coordinates_to_visit:
+            current_node_coordinates = coordinates_to_visit.pop()
+            if self.can_visit_left_node(current_node_coordinates):
+                coordinates_to_visit.append(
                     Point(current_node_coordinates.x - 1, current_node_coordinates.y)
                 )
                 self.nodes[current_node_coordinates.y][
@@ -85,7 +85,82 @@ class PathFinding(arcade.Window):
                 ].previous_node = self.nodes[current_node_coordinates.y][
                     current_node_coordinates.x
                 ]
-            
+            if self.can_visit_right_node(current_node_coordinates):
+                coordinates_to_visit.append(
+                    Point(current_node_coordinates.x + 1, current_node_coordinates.y)
+                )
+                self.nodes[current_node_coordinates.y][
+                    current_node_coordinates.x + 1
+                ].node_type = NodeType.EXPLORED
+                self.nodes[current_node_coordinates.y][
+                    current_node_coordinates.x + 1
+                ].previous_node = self.nodes[current_node_coordinates.y][
+                    current_node_coordinates.x
+                ]
+            if self.can_visit_bottom_node(current_node_coordinates):
+                coordinates_to_visit.append(
+                    Point(current_node_coordinates.x, current_node_coordinates.y - 1)
+                )
+                self.nodes[current_node_coordinates.y - 1][
+                    current_node_coordinates.x
+                ].node_type = NodeType.EXPLORED
+                self.nodes[current_node_coordinates.y - 1][
+                    current_node_coordinates.x
+                ].previous_node = self.nodes[current_node_coordinates.y][
+                    current_node_coordinates.x
+                ]
+            if self.can_visit_top_node(current_node_coordinates):
+                coordinates_to_visit.append(
+                    Point(current_node_coordinates.x, current_node_coordinates.y + 1)
+                )
+                self.nodes[current_node_coordinates.y + 1][
+                    current_node_coordinates.x
+                ].node_type = NodeType.EXPLORED
+                self.nodes[current_node_coordinates.y + 1][
+                    current_node_coordinates.x
+                ].previous_node = self.nodes[current_node_coordinates.y][
+                    current_node_coordinates.x
+                ]
+            if current_node_coordinates == TARGET_NODE_COORDINATES:
+                break
+
+    def can_visit_left_node(self, current_node_coordinates: Point) -> bool:
+        return current_node_coordinates.x != 0 and self.nodes[
+            current_node_coordinates.y
+        ][current_node_coordinates.x - 1].node_type not in {
+            NodeType.EXPLORED,
+            NodeType.START,
+            NodeType.TARGET,
+        }
+
+    def can_visit_right_node(self, current_node_coordinates: Point) -> bool:
+        return current_node_coordinates.x != len(
+            self.nodes[current_node_coordinates.y]
+        ) - 1 and self.nodes[current_node_coordinates.y][
+            current_node_coordinates.x + 1
+        ].node_type not in {
+            NodeType.EXPLORED,
+            NodeType.START,
+            NodeType.TARGET,
+        }
+
+    def can_visit_bottom_node(self, current_node_coordinates: Point) -> bool:
+        return current_node_coordinates.y != 0 and self.nodes[
+            current_node_coordinates.y - 1
+        ][current_node_coordinates.x].node_type not in {
+            NodeType.EXPLORED,
+            NodeType.START,
+            NodeType.TARGET,
+        }
+
+    def can_visit_top_node(self, current_node_coordinates: Point) -> bool:
+        return current_node_coordinates.y != len(self.nodes) - 1 and self.nodes[
+            current_node_coordinates.y + 1
+        ][current_node_coordinates.x].node_type not in {
+            NodeType.EXPLORED,
+            NodeType.START,
+            NodeType.TARGET,
+        }
 
     def on_draw(self) -> None:
         self.clear()
