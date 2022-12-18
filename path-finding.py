@@ -1,5 +1,4 @@
 from enum import Enum
-from tarfile import TarError
 from typing import Optional
 from collections import namedtuple
 import pprint
@@ -15,7 +14,7 @@ NodeType = Enum("NodeType", ["FREE", "EXPLORED", "WALL", "GRASS", "START", "TARG
 Point = namedtuple("Point", "x y")
 
 START_NODE_COORDINATES = Point(12, 4)
-TARGET_NODE_COORDINATES = Point(8, 8)
+TARGET_NODE_COORDINATES = Point(10, 4)
 
 
 class Node(arcade.SpriteSolidColor):
@@ -33,17 +32,12 @@ class Node(arcade.SpriteSolidColor):
         self.node_type = node_type
         self.previous_node = previous_node
 
-    # node_type: NodeType
-    # previous_node: Optional["Node"]
-    # center_x: int
-    # center_y: int
-
 
 class PathFinding(arcade.Window):
     def __init__(self, width: int, height: int, title: str):
         super().__init__(width, height, title)
         self.nodes = self.get_nodes()
-        pprint.pprint(self.nodes)
+        self.search_for_path = True
 
     def get_nodes(self) -> list[list[Node]]:
         nodes = []
@@ -68,11 +62,18 @@ class PathFinding(arcade.Window):
         ].node_type = NodeType.TARGET
         return nodes
 
-    def on_update(self, delta_time: float) -> None:
+    def on_key_press(self, symbol: int, modifiers: int) -> None:
+        if symbol == arcade.key.SPACE:
+            self.breadth_first_search()
+
+    def breadth_first_search(self) -> None:
         coordinates_to_visit = []
         coordinates_to_visit.append(START_NODE_COORDINATES)
         while coordinates_to_visit:
-            current_node_coordinates = coordinates_to_visit.pop()
+            current_node_coordinates = coordinates_to_visit.pop(0)
+            if current_node_coordinates == TARGET_NODE_COORDINATES:
+                self.search_for_path = False
+                break
             if self.can_visit_left_node(current_node_coordinates):
                 coordinates_to_visit.append(
                     Point(current_node_coordinates.x - 1, current_node_coordinates.y)
@@ -121,8 +122,6 @@ class PathFinding(arcade.Window):
                 ].previous_node = self.nodes[current_node_coordinates.y][
                     current_node_coordinates.x
                 ]
-            if current_node_coordinates == TARGET_NODE_COORDINATES:
-                break
 
     def can_visit_left_node(self, current_node_coordinates: Point) -> bool:
         return current_node_coordinates.x != 0 and self.nodes[
@@ -130,7 +129,6 @@ class PathFinding(arcade.Window):
         ][current_node_coordinates.x - 1].node_type not in {
             NodeType.EXPLORED,
             NodeType.START,
-            NodeType.TARGET,
         }
 
     def can_visit_right_node(self, current_node_coordinates: Point) -> bool:
@@ -141,7 +139,6 @@ class PathFinding(arcade.Window):
         ].node_type not in {
             NodeType.EXPLORED,
             NodeType.START,
-            NodeType.TARGET,
         }
 
     def can_visit_bottom_node(self, current_node_coordinates: Point) -> bool:
@@ -150,7 +147,6 @@ class PathFinding(arcade.Window):
         ][current_node_coordinates.x].node_type not in {
             NodeType.EXPLORED,
             NodeType.START,
-            NodeType.TARGET,
         }
 
     def can_visit_top_node(self, current_node_coordinates: Point) -> bool:
@@ -159,19 +155,11 @@ class PathFinding(arcade.Window):
         ][current_node_coordinates.x].node_type not in {
             NodeType.EXPLORED,
             NodeType.START,
-            NodeType.TARGET,
         }
 
     def on_draw(self) -> None:
         self.clear()
         self.draw_nodes()
-        # arcade.draw_rectangle_filled(
-        #     4 * GRID_SIZE + GRID_SIZE / 2,
-        #     2 * GRID_SIZE + GRID_SIZE / 2,
-        #     GRID_SIZE,
-        #     GRID_SIZE,
-        #     arcade.color.GREEN,
-        # )
         self.draw_grid()
 
     def draw_nodes(self) -> None:
@@ -217,7 +205,7 @@ class PathFinding(arcade.Window):
 
 
 def main() -> None:
-    window = PathFinding(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
+    PathFinding(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
     arcade.run()
 
 
