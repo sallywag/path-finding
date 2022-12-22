@@ -1,3 +1,5 @@
+# refactor mouse motion and press
+
 from enum import Enum
 from typing import Optional
 from collections import namedtuple
@@ -14,8 +16,6 @@ NodeType = Enum(
     "NodeType", ["FREE", "EXPLORED", "WALL", "GRASS", "START", "TARGET", "PATH"]
 )
 Coordinate = namedtuple("Coordinate", "x y")
-
-TARGET_NODE_COORDINATES = Coordinate(0, 5)
 
 
 class Node(arcade.SpriteSolidColor):
@@ -38,11 +38,13 @@ class PathFinding(arcade.Window):
     def __init__(self, width: int, height: int, title: str):
         super().__init__(width, height, title)
         self.start_node_coordinates = Coordinate(0, 3)
+        self.target_node_coordinates = Coordinate(0, 5)
         self.get_nodes()
         self.search_for_path = True
-        self.current_node_coordinates = None
-        self.coordinates_to_visit = []
+        self.current_node_coordinates: Coordinate | None = None
+        self.coordinates_to_visit: list[Coordinate] = []
         self.node_placement_type = NodeType.WALL
+        self.engaged_node: Node | None = None
 
     def get_nodes(self) -> None:
         self.nodes = []
@@ -62,8 +64,8 @@ class PathFinding(arcade.Window):
         self.nodes[self.start_node_coordinates.y][
             self.start_node_coordinates.x
         ].node_type = NodeType.START
-        self.nodes[TARGET_NODE_COORDINATES.y][
-            TARGET_NODE_COORDINATES.x
+        self.nodes[self.target_node_coordinates.y][
+            self.target_node_coordinates.x
         ].node_type = NodeType.TARGET
 
     def on_key_press(self, symbol: int, modifiers: int) -> None:
@@ -80,6 +82,26 @@ class PathFinding(arcade.Window):
             case arcade.key.T:
                 self.node_placement_type = NodeType.TARGET
 
+    def breadth_first_search(self) -> None:
+        self.coordinates_to_visit.append(self.start_node_coordinates)
+        while self.coordinates_to_visit:
+            self.current_node_coordinates = self.coordinates_to_visit.pop(0)
+            if self.current_node_coordinates == self.target_node_coordinates:
+                self.nodes[self.current_node_coordinates.y][
+                    self.current_node_coordinates.x
+                ].node_type = NodeType.TARGET
+                self.search_for_path = False
+                self.get_path()
+                break
+            if self.can_visit_left_node():
+                self.visit_left_node()
+            if self.can_visit_right_node():
+                self.visit_right_node()
+            if self.can_visit_bottom_node():
+                self.visit_bottom_node()
+            if self.can_visit_top_node():
+                self.visit_top_node()
+
     def clear_path(self) -> None:
         for row in self.nodes:
             for node in row:
@@ -93,6 +115,20 @@ class PathFinding(arcade.Window):
         self.search_for_path = True
         self.current_node_coordinates = None
         self.coordinates_to_visit = []
+
+    def get_path(self) -> None:
+        current_node = self.nodes[self.current_node_coordinates.y][
+            self.current_node_coordinates.x
+        ].previous_node
+        while current_node and current_node.previous_node:
+            current_node.node_type = NodeType.PATH
+            current_node = current_node.previous_node
+
+    def on_mouse_motion(self, x: int, y: int, dx: int, dy: int) -> None:
+        for row in self.nodes:
+            nodes = arcade.get_sprites_at_point((x, y), row)
+            if nodes:
+                self.engaged_node = nodes[0]
 
     def on_mouse_press(self, x: int, y: int, button: int, modifiers: int) -> None:
         for row in self.nodes:
@@ -112,38 +148,24 @@ class PathFinding(arcade.Window):
                         ].node_type = NodeType.FREE
                         nodes[0].node_type = NodeType.START
                         self.start_node_coordinates = Coordinate(
-                            int(nodes[0].left/GRID_SIZE),
-                            int(nodes[0].bottom/GRID_SIZE),
+                            int(nodes[0].left / GRID_SIZE),
+                            int(nodes[0].bottom / GRID_SIZE),
+                        )
+                        self.clear_path()
+                elif self.node_placement_type == NodeType.TARGET:
+                    if nodes[0].node_type not in {NodeType.START, NodeType.TARGET}:
+                        self.nodes[self.target_node_coordinates.y][
+                            self.target_node_coordinates.x
+                        ].node_type = NodeType.FREE
+                        nodes[0].node_type = NodeType.TARGET
+                        self.target_node_coordinates = Coordinate(
+                            int(nodes[0].left / GRID_SIZE),
+                            int(nodes[0].bottom / GRID_SIZE),
                         )
                         self.clear_path()
 
-    def breadth_first_search(self) -> None:
-        self.coordinates_to_visit.append(self.start_node_coordinates)
-        while self.coordinates_to_visit:
-            self.current_node_coordinates = self.coordinates_to_visit.pop(0)
-            if self.current_node_coordinates == TARGET_NODE_COORDINATES:
-                self.nodes[self.current_node_coordinates.y][
-                    self.current_node_coordinates.x
-                ].node_type = NodeType.TARGET
-                self.search_for_path = False
-                self.get_path()
-                break
-            if self.can_visit_left_node():
-                self.visit_left_node()
-            if self.can_visit_right_node():
-                self.visit_right_node()
-            if self.can_visit_bottom_node():
-                self.visit_bottom_node()
-            if self.can_visit_top_node():
-                self.visit_top_node()
-
-    def get_path(self) -> None:
-        current_node = self.nodes[self.current_node_coordinates.y][
-            self.current_node_coordinates.x
-        ].previous_node
-        while current_node and current_node.previous_node:
-            current_node.node_type = NodeType.PATH
-            current_node = current_node.previous_node
+    def add_node_to_grid(self) -> None:
+        pass
 
     def can_visit_left_node(self) -> bool:
         return self.current_node_coordinates.x != 0 and self.nodes[
@@ -156,7 +178,9 @@ class PathFinding(arcade.Window):
 
     def visit_left_node(self) -> None:
         self.coordinates_to_visit.append(
-            Coordinate(self.current_node_coordinates.x - 1, self.current_node_coordinates.y)
+            Coordinate(
+                self.current_node_coordinates.x - 1, self.current_node_coordinates.y
+            )
         )
         self.nodes[self.current_node_coordinates.y][
             self.current_node_coordinates.x - 1
@@ -180,7 +204,9 @@ class PathFinding(arcade.Window):
 
     def visit_right_node(self) -> None:
         self.coordinates_to_visit.append(
-            Coordinate(self.current_node_coordinates.x + 1, self.current_node_coordinates.y)
+            Coordinate(
+                self.current_node_coordinates.x + 1, self.current_node_coordinates.y
+            )
         )
         self.nodes[self.current_node_coordinates.y][
             self.current_node_coordinates.x + 1
@@ -202,7 +228,9 @@ class PathFinding(arcade.Window):
 
     def visit_bottom_node(self) -> None:
         self.coordinates_to_visit.append(
-            Coordinate(self.current_node_coordinates.x, self.current_node_coordinates.y - 1)
+            Coordinate(
+                self.current_node_coordinates.x, self.current_node_coordinates.y - 1
+            )
         )
         self.nodes[self.current_node_coordinates.y - 1][
             self.current_node_coordinates.x
@@ -224,7 +252,9 @@ class PathFinding(arcade.Window):
 
     def visit_top_node(self) -> None:
         self.coordinates_to_visit.append(
-            Coordinate(self.current_node_coordinates.x, self.current_node_coordinates.y + 1)
+            Coordinate(
+                self.current_node_coordinates.x, self.current_node_coordinates.y + 1
+            )
         )
         self.nodes[self.current_node_coordinates.y + 1][
             self.current_node_coordinates.x
@@ -239,6 +269,7 @@ class PathFinding(arcade.Window):
         self.clear()
         self.draw_nodes()
         self.draw_grid()
+        self.highlight_node()
 
     def draw_nodes(self) -> None:
         for row in self.nodes:
@@ -296,6 +327,34 @@ class PathFinding(arcade.Window):
                     arcade.color.WHITE,
                     border_width=4,
                 )
+
+    def highlight_node(self) -> None:
+        if self.engaged_node:
+            match self.node_placement_type:
+                case NodeType.WALL:
+                    arcade.draw_rectangle_filled(
+                        self.engaged_node.center_x,
+                        self.engaged_node.center_y,
+                        self.engaged_node.width,
+                        self.engaged_node.height,
+                        (255, 0, 0, 255 / 2),
+                    )
+                case NodeType.START:
+                    arcade.draw_rectangle_filled(
+                        self.engaged_node.center_x,
+                        self.engaged_node.center_y,
+                        self.engaged_node.width,
+                        self.engaged_node.height,
+                        (0, 255, 0, 255 / 2),
+                    )
+                case NodeType.TARGET:
+                    arcade.draw_rectangle_filled(
+                        self.engaged_node.center_x,
+                        self.engaged_node.center_y,
+                        self.engaged_node.width,
+                        self.engaged_node.height,
+                        (255, 255, 0, 255 / 2),
+                    )
 
 
 def main() -> None:
